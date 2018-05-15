@@ -1,0 +1,69 @@
+ public function importAsk()
+    {
+        $word = new COM("word.application") or die("无法启动word");
+        $word->Documents->OPen($_FILES['file']['tmp_name']);
+        //读取文档内容
+        $test = $word->ActiveDocument->content->Text;
+        $test = iconv('gbk', 'utf-8', $test);
+        //分割每个题
+        $spr = preg_split('/[0-9]{1,}[.、]{1,}/', $test);
+        //去掉第一个
+        array_shift($spr);
+        //题目标题和选项
+        $aswer = ['A' => 0, 'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4];
+        $all = array();
+        foreach ($spr as $key => $a) {
+            //根据选项分割
+            $askList = preg_split('/[A-Z]{1,}[.、．]{1,}/', trim($a));
+            //创建题目ask
+            $ask = trim(array_shift($askList));
+            //判断为判断还是多选
+            $reg = preg_match("/[A-Z]{1,}/", trim($a), $title);
+            //问题标题
+            $data['title'] = $reg != 0 ? trim(preg_replace("/[A-Z]{1,}/", '', $ask)) : trim(preg_split('/ {1,}/', $ask)[0]);
+            $asks['answer'] = trim(str_replace($data['title'], '', $ask));
+            $data['title'] = preg_replace('/[?]{1,}/','',$data['title']);
+            //几个答案
+            $data['answer_name'] = $reg != 0 ? strlen(trim($title[0])) : 1;
+            //添加时间
+            $data['add_time'] = ['exp', 'sysdate()'];
+            //试题分类
+            $data['ca'] = 1;
+            //类型
+            $data['class_id'] = $reg != 0 ? $data['answer_name'] > 1 ? 2 : 1 : 3;
+            $result = $ask_id = Ask::create($data)->id;
+//            $data['list'] = array();
+            $list = array();
+            if($reg != 0){
+                for($i=0;$i<strlen($asks['answer']);$i++){
+                    array_push($list, $aswer[$asks['answer'][$i]]);
+                }
+                foreach ($askList as $key => $l) {
+                    $d = array();
+                    $d['ask_id'] = $ask_id;
+                    $d['title'] = $ask_id;
+                    $d['is_answer'] = in_array($key, $list) ? '1' : '0';
+                    $d['content'] = preg_replace('/[?]{1,}/','',trim($l));
+                    $d['add_time'] = $data['add_time'];
+//                    array_push($data['list'],$d);
+                    $result = Answer::create($d)->id;
+                }
+            }else{
+                $ask=strstr( $asks['answer'],"√")?0:1;
+//                array_push($all,$ask);
+                for ($i=0;$i<2;$i++){
+                    $d = array();
+                    $d['ask_id'] = $ask_id;
+                    $d['title'] = $ask_id;
+                    $d['is_answer'] = $ask==$i ? '1' : '0';
+                    $d['content'] = $i==0?'对':'错';
+                    $d['add_time'] = $data['add_time'];
+                    $result = Answer::create($d)->id;
+//                    array_push($all,$d);
+                }
+            }
+//            array_push($all,$data);
+        }
+        print_r($result);
+        $word->Quit();
+    }
